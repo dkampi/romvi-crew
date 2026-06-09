@@ -1,0 +1,9 @@
+{
+  "short_name": "Romvi Crew",
+  "name": "Romvi Sailing - Crew Portal",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0D4D7A",
+  "background_color": "#0D4D7A",
+  "orientation": "portrait"
+}
