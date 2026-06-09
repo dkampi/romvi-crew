@@ -779,26 +779,10 @@ function ChartersView({ vessel }) {
   const [usingDemo, setUsingDemo] = useState(false);
 
   const fetchFromGoogle = async () => {
-    if (GOOGLE_API_KEY === "YOUR_API_KEY") {
-      setCharters(DEMO_CHARTERS);
-      setUsingDemo(true);
-      setLoading(false);
-      return;
-    }
     try {
-      const now = new Date().toISOString();
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GOOGLE_CALENDAR_ID)}/events?key=${GOOGLE_API_KEY}&timeMin=${now}&maxResults=20&singleEvents=true&orderBy=startTime`;
-      const res = await fetch(url);
-      const json = await res.json();
-      const events = (json.items || []).map(e => ({
-        id: e.id,
-        title: e.summary || "Ναύλος",
-        date: e.start?.date || e.start?.dateTime?.slice(0, 10),
-        timeStart: e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit" }) : "",
-        timeEnd: e.end?.dateTime ? new Date(e.end.dateTime).toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit" }) : "",
-        vessel: e.summary?.includes("ROMVI") ? "ROMVI" : "MARTA",
-        notes: e.description || "",
-      }));
+      const res = await fetch('/api/calendar');
+      if (!res.ok) throw new Error('Failed');
+      const events = await res.json();
       setCharters(events);
       setUsingDemo(false);
     } catch {
