@@ -284,7 +284,6 @@ const Icon = ({ name, size = 20 }) => {
     damage: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
     orders: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>,
     history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-    calendar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>,
   };
   return icons[name] || null;
 };
@@ -761,120 +760,6 @@ function DashboardView() {
   );
 }
 
-// ─── ΝΑΥΛΟΙ VIEW ─────────────────────────────────────────────────────────────
-const GOOGLE_CALENDAR_ID = "YOUR_CALENDAR_ID@group.calendar.google.com"; // αλλάζεις αυτό
-const GOOGLE_API_KEY = "YOUR_API_KEY"; // αλλάζεις αυτό
-
-// Demo ναύλοι — αντικαθίστανται από Google Calendar όταν συνδεθεί
-const DEMO_CHARTERS = [
-  { id: 1, title: "Ναύλος — 6 άτομα", date: "2025-06-10", timeStart: "10:00", timeEnd: "17:00", vessel: "MARTA", notes: "Γενέθλια, θέλουν μουσική" },
-  { id: 2, title: "Ναύλος — 4 άτομα", date: "2025-06-11", timeStart: "09:30", timeEnd: "14:00", vessel: "ROMVI", notes: "" },
-  { id: 3, title: "Ναύλος — 8 άτομα", date: "2025-06-13", timeStart: "11:00", timeEnd: "18:00", vessel: "MARTA", notes: "Βίγκαν διατροφή x2" },
-  { id: 4, title: "Ναύλος — 3 άτομα", date: "2025-06-14", timeStart: "10:00", timeEnd: "15:00", vessel: "ROMVI", notes: "" },
-];
-
-function ChartersView({ vessel }) {
-  const [charters, setCharters] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [usingDemo, setUsingDemo] = useState(false);
-
-  const fetchFromGoogle = async () => {
-    try {
-      const res = await fetch('/api/calendar');
-      if (!res.ok) throw new Error('Failed');
-      const events = await res.json();
-      setCharters(events);
-      setUsingDemo(false);
-    } catch {
-      setCharters(DEMO_CHARTERS);
-      setUsingDemo(true);
-    }
-    setLoading(false);
-  };
-
-  useState(() => { fetchFromGoogle(); }, []);
-
-  const today = new Date().toISOString().slice(0, 10);
-  const filtered = charters || [];
-  const upcoming = filtered.filter(c => c.date >= today);
-  const past = filtered.filter(c => c.date < today);
-
-  const fmtChDate = (dateStr) => new Date(dateStr + "T12:00:00").toLocaleDateString("el-GR", { weekday: "short", day: "2-digit", month: "2-digit" });
-
-  const isToday = (dateStr) => dateStr === today;
-  const isTomorrow = (dateStr) => {
-    const tom = new Date(); tom.setDate(tom.getDate() + 1);
-    return dateStr === tom.toISOString().slice(0, 10);
-  };
-
-  const dayLabel = (dateStr) => {
-    if (isToday(dateStr)) return "Σήμερα";
-    if (isTomorrow(dateStr)) return "Αύριο";
-    return fmtChDate(dateStr);
-  };
-
-  const vesselColor = (v) => v === "MARTA" ? "#1B6CA8" : "#0D4D7A";
-
-  if (loading) return (
-    <div className="empty"><div className="empty-icon">📅</div><div className="empty-text">Φόρτωση ναύλων...</div></div>
-  );
-
-  return (
-    <div>
-      {usingDemo && (
-        <div className="alert-banner" style={{ background: "#f0f4ff", borderColor: "#1B6CA8", color: "#0D4D7A" }}>
-          📅 Demo δεδομένα — σύνδεσε το Google Calendar για πραγματικούς ναύλους
-        </div>
-      )}
-
-      {upcoming.length === 0 && (
-        <div className="empty"><div className="empty-icon">⛵</div><div className="empty-text">Δεν υπάρχουν επερχόμενοι ναύλοι</div></div>
-      )}
-
-      {upcoming.map(c => (
-        <div key={c.id} className="list-item" style={{ borderLeftColor: vesselColor(c.vessel), borderLeftWidth: isToday(c.date) ? 6 : 4 }}>
-          <div className="list-item-header">
-            <div>
-              <div style={{ fontSize: "0.68rem", fontWeight: 700, color: isToday(c.date) ? "#ef4444" : "var(--text-light)", marginBottom: 3, letterSpacing: "0.5px" }}>
-                {dayLabel(c.date)}
-              </div>
-              <div className="list-item-title">{c.title}</div>
-              {c.timeStart && (
-                <div className="list-item-meta">🕐 {c.timeStart}{c.timeEnd ? ` — ${c.timeEnd}` : ""}</div>
-              )}
-              {c.notes && (
-                <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: 6, fontStyle: "italic" }}>📝 {c.notes}</div>
-              )}
-            </div>
-            <span className="badge" style={{ background: vesselColor(c.vessel) + "22", color: vesselColor(c.vessel), flexShrink: 0 }}>{c.vessel}</span>
-          </div>
-        </div>
-      ))}
-
-      {past.length > 0 && (
-        <details style={{ marginTop: 8 }}>
-          <summary style={{ fontSize: "0.75rem", color: "var(--text-light)", cursor: "pointer", padding: "8px 0" }}>Προηγούμενοι ναύλοι ({past.length})</summary>
-          {past.map(c => (
-            <div key={c.id} className="list-item" style={{ borderLeftColor: vesselColor(c.vessel), opacity: 0.6 }}>
-              <div className="list-item-header">
-                <div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--text-light)", marginBottom: 2 }}>{fmtChDate(c.date)}</div>
-                  <div className="list-item-title">{c.title}</div>
-                  {c.timeStart && <div className="list-item-meta">🕐 {c.timeStart}{c.timeEnd ? ` — ${c.timeEnd}` : ""}</div>}
-                </div>
-                <span className="badge" style={{ background: vesselColor(c.vessel) + "22", color: vesselColor(c.vessel) }}>{c.vessel}</span>
-              </div>
-            </div>
-          ))}
-        </details>
-      )}
-
-      <button className="btn btn-outline btn-full" style={{ marginTop: 16 }} onClick={fetchFromGoogle}>
-        Ανανέωση
-      </button>
-    </div>
-  );
-}
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -941,7 +826,6 @@ export default function App() {
   // ── APP ──
   const navItems = [
     ...(role === "admin" ? [{ id: "dashboard", label: "Dashboard", icon: "check" }] : []),
-    { id: "charters", label: "Ναύλοι", icon: "calendar" },
     { id: "daily", label: "Ημερήσιο", icon: "daily" },
     { id: "weekly", label: "Εβδομαδ.", icon: "weekly" },
     { id: "damages", label: "Βλάβες", icon: "damage" },
@@ -949,7 +833,7 @@ export default function App() {
     { id: "history", label: "Ιστορικό", icon: "history" },
   ];
 
-  const titles = { dashboard: "Dashboard", charters: "Ναύλοι", daily: "Ημερήσιο Checklist", weekly: "Εβδομαδιαίο Checklist", damages: "Βλάβες & Φθορές", orders: "Παραγγελίες", history: "Ιστορικό" };
+  const titles = { dashboard: "Dashboard", daily: "Ημερήσιο Checklist", weekly: "Εβδομαδιαίο Checklist", damages: "Βλάβες & Φθορές", orders: "Παραγγελίες", history: "Ιστορικό" };
 
   return (
     <>
@@ -964,7 +848,7 @@ export default function App() {
               <button className="logout-btn" style={{ marginTop: 4 }} onClick={handleLogout}>Έξοδος</button>
             </div>
           </div>
-          {tab !== "dashboard" && tab !== "charters" && (
+          {tab !== "dashboard" && (
             <div className="vessel-tabs">
               {VESSELS.map(v => (
                 <button key={v} className={`vessel-tab ${vessel === v ? "active" : ""}`} onClick={() => setVessel(v)}>{v}</button>
@@ -975,9 +859,8 @@ export default function App() {
 
         <div className="content">
           <div className="section-title">{titles[tab]}</div>
-          <div className="section-sub">{tab === "dashboard" ? "Συνολικη Εικονα" : tab === "charters" ? "Google Calendar" : vessel}</div>
+          <div className="section-sub">{tab === "dashboard" ? "Συνολικη Εικονα" : vessel}</div>
           {tab === "dashboard" && <DashboardView />}
-          {tab === "charters" && <ChartersView vessel={vessel} />}
           {tab === "daily" && <ChecklistView vessel={vessel} type="daily" userName={userName} />}
           {tab === "weekly" && <ChecklistView vessel={vessel} type="weekly" userName={userName} />}
           {tab === "damages" && <DamagesView vessel={vessel} role={role} userName={userName} />}
