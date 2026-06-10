@@ -295,35 +295,64 @@ function ChecklistView({ vessel, type, userName }) {
   const table = type === "daily" ? "daily_logs" : "weekly_logs";
   const keyField = type === "daily" ? "date" : "week_start";
 
-  const [checkedMap, setCheckedMap] = useState({});
-  const [note, setNote] = useState("");
+  const localKey = `romvi_cl_${table}_${vessel}_${key}`;
+
+  const [checkedMap, setCheckedMap] = useState(() => {
+    try { const l = localStorage.getItem(localKey); return l ? JSON.parse(l).checked_map || {} : {}; } catch { return {}; }
+  });
+  const [note, setNote] = useState(() => {
+    try { const l = localStorage.getItem(localKey); return l ? JSON.parse(l).note || "" : ""; } catch { return ""; }
+  });
   const [rowId, setRowId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [synced, setSynced] = useState(false);
+  const syncTimer = { current: null };
 
+  // Load from Supabase on mount — merge with local (local wins if newer)
   useEffect(() => {
     dbGet(table, `?vessel=eq.${vessel}&${keyField}=eq.${key}`).then(rows => {
       if (rows && rows.length > 0) {
-        setCheckedMap(rows[0].checked_map || {});
-        setNote(rows[0].note || "");
-        setRowId(rows[0].id);
-      } else {
-        setCheckedMap({});
-        setNote("");
-        setRowId(null);
+        const remote = rows[0];
+        setRowId(remote.id);
+        // Only overwrite local if local is empty (first load)
+        try {
+          const local = localStorage.getItem(localKey);
+          if (!local) {
+            setCheckedMap(remote.checked_map || {});
+            setNote(remote.note || "");
+            localStorage.setItem(localKey, JSON.stringify({ checked_map: remote.checked_map || {}, note: remote.note || "" }));
+          }
+        } catch {
+          setCheckedMap(remote.checked_map || {});
+          setNote(remote.note || "");
+        }
       }
-    });
+      setSynced(true);
+    }).catch(() => setSynced(true));
   }, [vessel, type]);
 
-  const upsert = async (newMap, newNote) => {
+  const saveLocal = (newMap, newNote) => {
+    try { localStorage.setItem(localKey, JSON.stringify({ checked_map: newMap, note: newNote })); } catch {}
+  };
+
+  const syncToSupabase = async (newMap, newNote, currentRowId) => {
     setSaving(true);
-    const payload = { vessel, [keyField]: key, checked_map: newMap, note: newNote, last_by: userName, updated_at: now() };
-    if (rowId) {
-      await dbPatch(table, payload, `?id=eq.${rowId}`);
-    } else {
-      const res = await dbPost(table, payload);
-      if (res && res.length > 0) setRowId(res[0].id);
-    }
+    try {
+      const payload = { vessel, [keyField]: key, checked_map: newMap, note: newNote, last_by: userName, updated_at: now() };
+      if (currentRowId) {
+        await dbPatch(table, payload, `?id=eq.${currentRowId}`);
+      } else {
+        const res = await dbPost(table, payload);
+        if (res && res.length > 0) setRowId(res[0].id);
+      }
+    } catch (e) { console.error("Sync failed, data safe in localStorage", e); }
     setSaving(false);
+  };
+
+  const upsert = (newMap, newNote) => {
+    saveLocal(newMap, newNote);
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => syncToSupabase(newMap, newNote, rowId), 800);
   };
 
   const toggle = (item) => {
@@ -359,6 +388,7 @@ function ChecklistView({ vessel, type, userName }) {
           <span className="card-title-dot" style={{ background: VESSEL_COLORS[vessel] }}></span>
           {vessel} — {type === "daily" ? fmtDate(today()) : `Εβδ. ${fmtDate(weekStart())}`}
           {saving && <span style={{ fontSize: "0.65rem", color: "var(--text-light)", marginLeft: "auto" }}>Αποθήκευση...</span>}
+          {!saving && !synced && <span style={{ fontSize: "0.65rem", color: "#f59e0b", marginLeft: "auto" }}>Εκτός σύνδεσης</span>}
         </div>
         <div className="progress-bar-wrap">
           <div className="progress-bar" style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : VESSEL_COLORS[vessel] }} />
