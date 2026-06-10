@@ -297,24 +297,36 @@ function ChecklistView({ vessel, type, userName }) {
 
   const localKey = `romvi_cl_${table}_${vessel}_${key}`;
 
-  const [checkedMap, setCheckedMap] = useState(() => {
-    try { const l = localStorage.getItem(localKey); return l ? JSON.parse(l).checked_map || {} : {}; } catch { return {}; }
-  });
-  const [note, setNote] = useState(() => {
-    try { const l = localStorage.getItem(localKey); return l ? JSON.parse(l).note || "" : ""; } catch { return ""; }
-  });
+  const [checkedMap, setCheckedMap] = useState({});
+  const [note, setNote] = useState("");
   const [rowId, setRowId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [synced, setSynced] = useState(false);
   const syncTimer = { current: null };
 
-  // Load from Supabase on mount — merge with local (local wins if newer)
+  // Reset state when vessel or type changes, load from localStorage first
   useEffect(() => {
+    setSynced(false);
+    setRowId(null);
+    try {
+      const l = localStorage.getItem(localKey);
+      if (l) {
+        const parsed = JSON.parse(l);
+        setCheckedMap(parsed.checked_map || {});
+        setNote(parsed.note || "");
+      } else {
+        setCheckedMap({});
+        setNote("");
+      }
+    } catch {
+      setCheckedMap({});
+      setNote("");
+    }
+    // Fetch from Supabase to get rowId and sync if no local data
     dbGet(table, `?vessel=eq.${vessel}&${keyField}=eq.${key}`).then(rows => {
       if (rows && rows.length > 0) {
         const remote = rows[0];
         setRowId(remote.id);
-        // Only overwrite local if local is empty (first load)
         try {
           const local = localStorage.getItem(localKey);
           if (!local) {
