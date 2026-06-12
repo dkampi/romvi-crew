@@ -403,14 +403,23 @@ function ChecklistView({ vessel, type, userName }) {
   // Date navigation helpers
   const prevDate = () => {
     const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() - 1);
+    if (type === "daily") d.setDate(d.getDate() - 1);
+    else d.setDate(d.getDate() - 7);
     setSelectedDate(d.toISOString().slice(0, 10));
   };
   const nextDate = () => {
     const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() + 1);
+    if (type === "daily") d.setDate(d.getDate() + 1);
+    else d.setDate(d.getDate() + 7);
     const next = d.toISOString().slice(0, 10);
     if (next <= (type === "daily" ? today() : weekStart())) setSelectedDate(next);
+  };
+
+  const dateLabel = () => {
+    if (type === "daily") return fmtDate(selectedDate) + (isToday ? " (σήμερα)" : "");
+    const end = new Date(selectedDate + "T12:00:00");
+    end.setDate(end.getDate() + 6);
+    return `${fmtDate(selectedDate)} – ${fmtDate(end.toISOString().slice(0, 10))}${isToday ? " (τρέχουσα)" : ""}`;
   };
 
   return (
@@ -420,7 +429,7 @@ function ChecklistView({ vessel, type, userName }) {
           <span className="card-title-dot" style={{ background: VESSEL_COLORS[vessel] }}></span>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
             <button onClick={prevDate} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ocean)", fontSize: "1rem", padding: "0 4px" }}>‹</button>
-            <span style={{ fontSize: "0.78rem" }}>{fmtDate(selectedDate)}{isToday ? " (σήμερα)" : ""}</span>
+            <span style={{ fontSize: "0.78rem" }}>{dateLabel()}</span>
             <button onClick={nextDate} style={{ background: "none", border: "none", cursor: "pointer", color: isToday ? "var(--border)" : "var(--ocean)", fontSize: "1rem", padding: "0 4px" }} disabled={isToday}>›</button>
           </div>
           {saving && <span style={{ fontSize: "0.65rem", color: "var(--text-light)" }}>Αποθήκευση...</span>}
