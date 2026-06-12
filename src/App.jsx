@@ -305,43 +305,45 @@ function ChecklistView({ vessel, type, userName }) {
   const [synced, setSynced] = useState(false);
   const syncTimer = { current: null };
 
-  // Reset state when vessel or type changes, load from localStorage first
+  // ALWAYS load from Supabase when vessel/type changes — localStorage is write buffer only
   useEffect(() => {
     setSynced(false);
     setRowId(null);
-    try {
-      const l = localStorage.getItem(localKey);
-      if (l) {
-        const parsed = JSON.parse(l);
-        setCheckedMap(parsed.checked_map || {});
-        setNote(parsed.note || "");
-      } else {
-        setCheckedMap({});
-        setNote("");
-      }
-    } catch {
-      setCheckedMap({});
-      setNote("");
-    }
-    // Fetch from Supabase to get rowId and sync if no local data
+    setCheckedMap({});
+    setNote("");
+
     dbGet(table, `?vessel=eq.${vessel}&${keyField}=eq.${key}`).then(rows => {
       if (rows && rows.length > 0) {
         const remote = rows[0];
         setRowId(remote.id);
+        setCheckedMap(remote.checked_map || {});
+        setNote(remote.note || "");
+        // Update localStorage to match remote
+        try { localStorage.setItem(localKey, JSON.stringify({ checked_map: remote.checked_map || {}, note: remote.note || "" })); } catch {}
+      } else {
+        // No remote data — check localStorage for unsent changes
         try {
-          const local = localStorage.getItem(localKey);
-          if (!local) {
-            setCheckedMap(remote.checked_map || {});
-            setNote(remote.note || "");
-            localStorage.setItem(localKey, JSON.stringify({ checked_map: remote.checked_map || {}, note: remote.note || "" }));
+          const l = localStorage.getItem(localKey);
+          if (l) {
+            const parsed = JSON.parse(l);
+            setCheckedMap(parsed.checked_map || {});
+            setNote(parsed.note || "");
           }
-        } catch {
-          setCheckedMap(remote.checked_map || {});
-          setNote(remote.note || "");
-        }
+        } catch {}
       }
       setSynced(true);
-    }).catch(() => setSynced(true));
+    }).catch(() => {
+      // Supabase unreachable — fall back to localStorage
+      try {
+        const l = localStorage.getItem(localKey);
+        if (l) {
+          const parsed = JSON.parse(l);
+          setCheckedMap(parsed.checked_map || {});
+          setNote(parsed.note || "");
+        }
+      } catch {}
+      setSynced(true);
+    });
   }, [vessel, type]);
 
   const saveLocal = (newMap, newNote) => {
@@ -358,6 +360,8 @@ function ChecklistView({ vessel, type, userName }) {
         const res = await dbPost(table, payload);
         if (res && res.length > 0) setRowId(res[0].id);
       }
+      // Clear localStorage buffer after successful sync
+      try { localStorage.removeItem(localKey); } catch {}
     } catch (e) { console.error("Sync failed, data safe in localStorage", e); }
     setSaving(false);
   };
