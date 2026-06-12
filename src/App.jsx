@@ -292,10 +292,12 @@ const Icon = ({ name, size = 20 }) => {
 // ─── CHECKLIST VIEW ───────────────────────────────────────────────────────────
 function ChecklistView({ vessel, type, userName }) {
   const items = type === "daily" ? DAILY_ITEMS : WEEKLY_ITEMS;
-  const key = type === "daily" ? today() : weekStart();
   const table = type === "daily" ? "daily_logs" : "weekly_logs";
   const keyField = type === "daily" ? "date" : "week_start";
 
+  const [selectedDate, setSelectedDate] = useState(type === "daily" ? today() : weekStart());
+  const key = selectedDate;
+  const isToday = selectedDate === (type === "daily" ? today() : weekStart());
   const localKey = `romvi_cl_${table}_${vessel}_${key}`;
 
   const [checkedMap, setCheckedMap] = useState({});
@@ -344,7 +346,7 @@ function ChecklistView({ vessel, type, userName }) {
       } catch {}
       setSynced(true);
     });
-  }, [vessel, type]);
+  }, [vessel, type, selectedDate]);
 
   const saveLocal = (newMap, newNote) => {
     try { localStorage.setItem(localKey, JSON.stringify({ checked_map: newMap, note: newNote })); } catch {}
@@ -389,8 +391,8 @@ function ChecklistView({ vessel, type, userName }) {
   const pct = Math.round((checkedCount / items.length) * 100);
 
   const renderItem = (item) => (
-    <div key={item} className="check-item" onClick={() => toggle(item)}>
-      <div className={`check-box ${checkedMap[item] ? "checked" : ""}`}>
+    <div key={item} className="check-item" onClick={() => isToday && toggle(item)} style={{ cursor: isToday ? "pointer" : "default" }}>
+      <div className={`check-box ${checkedMap[item] ? "checked" : ""}`} style={{ opacity: isToday ? 1 : 0.7 }}>
         {checkedMap[item] && <Icon name="check" size={13} />}
       </div>
       <span className={`check-label ${checkedMap[item] ? "checked" : ""}`}>{item}</span>
@@ -398,15 +400,37 @@ function ChecklistView({ vessel, type, userName }) {
     </div>
   );
 
+  // Date navigation helpers
+  const prevDate = () => {
+    const d = new Date(selectedDate + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().slice(0, 10));
+  };
+  const nextDate = () => {
+    const d = new Date(selectedDate + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    const next = d.toISOString().slice(0, 10);
+    if (next <= (type === "daily" ? today() : weekStart())) setSelectedDate(next);
+  };
+
   return (
     <div>
       <div className="card">
         <div className="card-title">
           <span className="card-title-dot" style={{ background: VESSEL_COLORS[vessel] }}></span>
-          {vessel} — {type === "daily" ? fmtDate(today()) : `Εβδ. ${fmtDate(weekStart())}`}
-          {saving && <span style={{ fontSize: "0.65rem", color: "var(--text-light)", marginLeft: "auto" }}>Αποθήκευση...</span>}
-          {!saving && !synced && <span style={{ fontSize: "0.65rem", color: "#f59e0b", marginLeft: "auto" }}>Εκτός σύνδεσης</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+            <button onClick={prevDate} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ocean)", fontSize: "1rem", padding: "0 4px" }}>‹</button>
+            <span style={{ fontSize: "0.78rem" }}>{fmtDate(selectedDate)}{isToday ? " (σήμερα)" : ""}</span>
+            <button onClick={nextDate} style={{ background: "none", border: "none", cursor: "pointer", color: isToday ? "var(--border)" : "var(--ocean)", fontSize: "1rem", padding: "0 4px" }} disabled={isToday}>›</button>
+          </div>
+          {saving && <span style={{ fontSize: "0.65rem", color: "var(--text-light)" }}>Αποθήκευση...</span>}
+          {!saving && !synced && <span style={{ fontSize: "0.65rem", color: "#f59e0b" }}>Εκτός σύνδεσης</span>}
         </div>
+        {!isToday && (
+          <div style={{ background: "var(--ocean-light)", borderRadius: 8, padding: "6px 12px", marginBottom: 10, fontSize: "0.75rem", color: "var(--ocean-dark)" }}>
+            📅 Προβολή ιστορικού — δεν μπορείτε να κάνετε αλλαγές
+          </div>
+        )}
         <div className="progress-bar-wrap">
           <div className="progress-bar" style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : VESSEL_COLORS[vessel] }} />
         </div>
