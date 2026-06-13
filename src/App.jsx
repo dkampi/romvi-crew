@@ -609,9 +609,26 @@ function OrdersView({ vessel, role, userName }) {
     fetchOrders();
   };
 
+  const [confirmOrder, setConfirmOrder] = useState(null); // { id, item }
+
   const updateStatus = async (id, status) => {
     await dbPatch("orders", { status, updated_at: now(), updated_by: userName }, `?id=eq.${id}`);
     fetchOrders();
+  };
+
+  const handleStatusClick = (order, status) => {
+    if (status === "Παραδόθηκε") {
+      setConfirmOrder({ id: order.id, item: order.item });
+    } else {
+      updateStatus(order.id, status);
+    }
+  };
+
+  const confirmDelivery = async () => {
+    if (confirmOrder) {
+      await updateStatus(confirmOrder.id, "Παραδόθηκε");
+      setConfirmOrder(null);
+    }
   };
 
   const pending = orders.filter(o => o.status !== "Παραδόθηκε");
@@ -641,7 +658,7 @@ function OrdersView({ vessel, role, userName }) {
           {role === "admin" && (
             <div className="list-item-actions">
               {ORDER_STATUSES.filter(s => s !== o.status).map(s => (
-                <button key={s} className="btn btn-outline btn-sm" onClick={() => updateStatus(o.id, s)}>{s}</button>
+                <button key={s} className="btn btn-outline btn-sm" onClick={() => handleStatusClick(o, s)}>{s}</button>
               ))}
             </div>
           )}
@@ -657,6 +674,24 @@ function OrdersView({ vessel, role, userName }) {
             </div>
           ))}
         </details>
+      )}
+      {confirmOrder && (
+        <div className="modal-overlay" onClick={() => setConfirmOrder(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">Επιβεβαίωση παράδοσης</div>
+            <div style={{ fontSize: "0.88rem", color: "var(--text)", marginBottom: 8 }}>
+              Επιβεβαιώνεις ότι παραδόθηκε:
+            </div>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--ocean-dark)", marginBottom: 24, padding: "12px 16px", background: "var(--ocean-light)", borderRadius: 10 }}>
+              {confirmOrder.item}
+            </div>
+            <div className="btn-row">
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setConfirmOrder(null)}>Ακύρωση</button>
+              <button className="btn" style={{ flex: 2, background: "#22c55e", color: "white" }} onClick={confirmDelivery}>Παραδόθηκε ✓</button>
+            </div>
+          </div>
+        </div>
       )}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
