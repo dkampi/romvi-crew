@@ -136,7 +136,7 @@ const fmt = (iso) => new Date(iso).toLocaleString("el-GR", { day: "2-digit", mon
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("el-GR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 const VESSELS = ["MARTA", "ROMVI"];
-const PINS = { crew: "1234", admin: "9999" };
+const PINS = { crew: "1234", admin: "9999", finance: "7777" };
 const SEVERITIES = ["Χαμηλή", "Μέτρια", "Υψηλή"];
 const PRIORITIES = ["Κανονική", "Επείγον"];
 const DAMAGE_STATUSES = ["Ανοιχτό", "Σε εξέλιξη", "Κλειστό"];
@@ -285,6 +285,7 @@ const Icon = ({ name, size = 20 }) => {
     damage: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
     orders: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>,
     history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    finance: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
   };
   return icons[name] || null;
 };
@@ -876,6 +877,246 @@ function DashboardView() {
 }
 
 
+// ─── FINANCE VIEW ────────────────────────────────────────────────────────────
+const CLIENT_TYPES = ["Ιδιώτης", "Ταξιδιωτικό γραφείο", "Partner"];
+const PAYMENT_STATUSES = ["Εξοφλημένο", "Μερική προκαταβολή", "Ακάλυπτο"];
+const PAYMENT_METHODS = ["Μετρητά", "Κάρτα", "Μετρητά+Κάρτα", "Τραπεζική κατάθεση"];
+const PAYMENT_STATUS_COLORS = { "Εξοφλημένο": "#22c55e", "Μερική προκαταβολή": "#f59e0b", "Ακάλυπτο": "#ef4444" };
+
+const emptyForm = () => ({ vessel: "MARTA", date: today(), client_name: "", client_type: "Ιδιώτης", total: "", deposit: "", payment_status: "Ακάλυπτο", payment_method: "Μετρητά", notes: "" });
+
+function FinanceView() {
+  const [charters, setCharters] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(emptyForm());
+  const [view, setView] = useState("list"); // "list" | "stats"
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
+  const [filterMonth, setFilterMonth] = useState("all");
+
+  const fetchCharters = () => dbGet("charters", "?order=date.desc").then(rows => setCharters(rows || []));
+  useEffect(() => { fetchCharters(); }, []);
+
+  const balance = (f) => (parseFloat(f.total || 0) - parseFloat(f.deposit || 0)).toFixed(2);
+
+  const saveCharter = async () => {
+    if (!form.client_name.trim() || !form.total) return;
+    const payload = { ...form, total: parseFloat(form.total), deposit: parseFloat(form.deposit || 0), balance: parseFloat(balance(form)), updated_at: now() };
+    if (editId) {
+      await dbPatch("charters", payload, `?id=eq.${editId}`);
+    } else {
+      await dbPost("charters", payload);
+    }
+    setShowForm(false);
+    setEditId(null);
+    setForm(emptyForm());
+    fetchCharters();
+  };
+
+  const deleteCharter = async (id) => {
+    await sb("DELETE", "charters", null, `?id=eq.${id}`);
+    fetchCharters();
+  };
+
+  const openEdit = (c) => {
+    setForm({ vessel: c.vessel, date: c.date, client_name: c.client_name, client_type: c.client_type, total: c.total, deposit: c.deposit, payment_status: c.payment_status, payment_method: c.payment_method, notes: c.notes || "" });
+    setEditId(c.id);
+    setShowForm(true);
+  };
+
+  // Filtered charters for stats
+  const filtered = charters.filter(c => {
+    const yr = c.date?.slice(0, 4);
+    const mo = c.date?.slice(5, 7);
+    if (filterYear !== "all" && yr !== filterYear) return false;
+    if (filterMonth !== "all" && mo !== filterMonth) return false;
+    return true;
+  });
+
+  const years = [...new Set(charters.map(c => c.date?.slice(0, 4)))].filter(Boolean).sort().reverse();
+  const totalRevenue = filtered.reduce((s, c) => s + (c.total || 0), 0);
+  const totalDeposit = filtered.reduce((s, c) => s + (c.deposit || 0), 0);
+  const totalBalance = filtered.reduce((s, c) => s + (c.balance || 0), 0);
+  const pendingBalance = filtered.filter(c => c.payment_status !== "Εξοφλημένο").reduce((s, c) => s + (c.balance || 0), 0);
+  const martaCount = filtered.filter(c => c.vessel === "MARTA").length;
+  const romviCount = filtered.filter(c => c.vessel === "ROMVI").length;
+
+  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const monthNames = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
+
+  return (
+    <div>
+      <div className="tabs">
+        <button className={`tab ${view === "list" ? "active" : ""}`} onClick={() => setView("list")}>Ναύλοι</button>
+        <button className={`tab ${view === "stats" ? "active" : ""}`} onClick={() => setView("stats")}>Στατιστικά</button>
+      </div>
+
+      {view === "list" && (
+        <>
+          <button className="btn btn-primary btn-full" onClick={() => { setForm(emptyForm()); setEditId(null); setShowForm(true); }} style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Icon name="plus" size={16} /> Νέος Ναύλος
+          </button>
+          {charters.length === 0 && <div className="empty"><div className="empty-icon">⛵</div><div className="empty-text">Δεν υπάρχουν καταχωρημένοι ναύλοι</div></div>}
+          {charters.map(c => (
+            <div key={c.id} className="list-item" style={{ borderLeftColor: PAYMENT_STATUS_COLORS[c.payment_status] }}>
+              <div className="list-item-header">
+                <div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-light)", marginBottom: 2 }}>{fmtDate(c.date)} · {c.vessel}</div>
+                  <div className="list-item-title">{c.client_name}</div>
+                  <div className="list-item-meta">{c.client_type} · {c.payment_method}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                  <span className="badge" style={{ background: PAYMENT_STATUS_COLORS[c.payment_status] + "22", color: PAYMENT_STATUS_COLORS[c.payment_status] }}>{c.payment_status}</span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--ocean-dark)" }}>€{c.total?.toFixed(2)}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 16, fontSize: "0.75rem", color: "var(--text-light)", marginTop: 4 }}>
+                <span>Προκαταβολή: <strong>€{c.deposit?.toFixed(2)}</strong></span>
+                <span>Υπόλοιπο: <strong style={{ color: c.balance > 0 ? "#ef4444" : "#22c55e" }}>€{c.balance?.toFixed(2)}</strong></span>
+              </div>
+              {c.notes && <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: 4, fontStyle: "italic" }}>📝 {c.notes}</div>}
+              <div className="list-item-actions">
+                <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>Επεξεργασία</button>
+                <button className="btn btn-sm" style={{ background: "#fff0f0", border: "1.5px solid #ef4444", color: "#ef4444" }} onClick={() => { if (window.confirm(`Διαγραφή ναύλου "${c.client_name}";`)) deleteCharter(c.id); }}>Διαγραφή</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {view === "stats" && (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <select className="form-input form-select" style={{ flex: 1 }} value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+              <option value="all">Όλα τα έτη</option>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select className="form-input form-select" style={{ flex: 1 }} value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+              <option value="all">Όλοι οι μήνες</option>
+              {months.map((m, i) => <option key={m} value={m}>{monthNames[i]}</option>)}
+            </select>
+          </div>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-num" style={{ fontSize: "1.6rem" }}>€{totalRevenue.toFixed(0)}</div>
+              <div className="stat-label">Συνολικός τζίρος</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-num" style={{ color: pendingBalance > 0 ? "#ef4444" : "#22c55e", fontSize: "1.6rem" }}>€{pendingBalance.toFixed(0)}</div>
+              <div className="stat-label">Οφειλές</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-num">{martaCount}</div>
+              <div className="stat-label">Ναύλοι Marta</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-num">{romviCount}</div>
+              <div className="stat-label">Ναύλοι Romvi</div>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-title"><span className="card-title-dot"></span>Ανάλυση</div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.82rem" }}>
+              <span>Σύνολο ναύλων</span><strong>{filtered.length}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.82rem" }}>
+              <span>Εισπραχθέντα</span><strong style={{ color: "#22c55e" }}>€{(totalRevenue - pendingBalance).toFixed(2)}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.82rem" }}>
+              <span>Εκκρεμείς οφειλές</span><strong style={{ color: "#ef4444" }}>€{pendingBalance.toFixed(2)}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: "0.82rem" }}>
+              <span>Μέσος ναύλος</span><strong>€{filtered.length ? (totalRevenue / filtered.length).toFixed(2) : "0.00"}</strong>
+            </div>
+          </div>
+          {/* Per client type breakdown */}
+          <div className="card">
+            <div className="card-title"><span className="card-title-dot"></span>Ανά τύπο πελάτη</div>
+            {CLIENT_TYPES.map(ct => {
+              const ctCharters = filtered.filter(c => c.client_type === ct);
+              if (!ctCharters.length) return null;
+              return (
+                <div key={ct} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.82rem" }}>
+                  <span>{ct} ({ctCharters.length})</span>
+                  <strong>€{ctCharters.reduce((s, c) => s + (c.total || 0), 0).toFixed(2)}</strong>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">{editId ? "Επεξεργασία Ναύλου" : "Νέος Ναύλος"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Ημερομηνία</label>
+                <input className="form-input" type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Σκάφος</label>
+                <select className="form-input form-select" value={form.vessel} onChange={e => setForm({ ...form, vessel: e.target.value })}>
+                  <option>MARTA</option><option>ROMVI</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Όνομα πελάτη *</label>
+              <input className="form-input" placeholder="π.χ. Παπαδόπουλος Γιώργης" value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Τύπος πελάτη</label>
+                <select className="form-input form-select" value={form.client_type} onChange={e => setForm({ ...form, client_type: e.target.value })}>
+                  {CLIENT_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Τρόπος πληρωμής</label>
+                <select className="form-input form-select" value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>
+                  {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Σύνολο (€) *</label>
+                <input className="form-input" type="number" placeholder="0.00" value={form.total} onChange={e => setForm({ ...form, total: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Προκαταβολή (€)</label>
+                <input className="form-input" type="number" placeholder="0.00" value={form.deposit} onChange={e => setForm({ ...form, deposit: e.target.value })} />
+              </div>
+            </div>
+            {form.total && (
+              <div style={{ background: "var(--ocean-light)", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: "0.78rem", color: "var(--ocean-dark)" }}>
+                Υπόλοιπο: <strong>€{balance(form)}</strong>
+              </div>
+            )}
+            <div className="form-group">
+              <label className="form-label">Κατάσταση πληρωμής</label>
+              <select className="form-input form-select" value={form.payment_status} onChange={e => setForm({ ...form, payment_status: e.target.value })}>
+                {PAYMENT_STATUSES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Σημειώσεις</label>
+              <textarea className="note-area" placeholder="Προαιρετικά..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+            </div>
+            <div className="btn-row">
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Άκυρο</button>
+              <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveCharter}>Αποθήκευση</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   // step: "pin" | "name" | "app"
@@ -885,10 +1126,12 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [userName, setUserName] = useState("");
   const [vessel, setVessel] = useState("MARTA");
-  const [tab, setTab] = useState("daily");
+  const defaultTab = role === "finance" ? "finance" : "daily";
+  const [tab, setTab] = useState(defaultTab);
 
   const handlePin = () => {
     if (pin === PINS.admin) { setRole("admin"); setPinError(""); setStep("name"); }
+    else if (pin === PINS.finance) { setRole("finance"); setPinError(""); setStep("app"); setUserName("Διαχειριστής"); }
     else if (pin === PINS.crew) { setRole("crew"); setPinError(""); setStep("name"); }
     else { setPinError("Λάθος PIN. Δοκίμασε ξανά."); }
     setPin("");
@@ -941,14 +1184,17 @@ export default function App() {
   // ── APP ──
   const navItems = [
     ...(role === "admin" ? [{ id: "dashboard", label: "Dashboard", icon: "check" }] : []),
-    { id: "daily", label: "Ημερήσιο", icon: "daily" },
-    { id: "weekly", label: "Εβδομαδ.", icon: "weekly" },
-    { id: "damages", label: "Βλάβες", icon: "damage" },
-    { id: "orders", label: "Παραγγ.", icon: "orders" },
-    { id: "history", label: "Ιστορικό", icon: "history" },
+    ...(role === "admin" || role === "finance" ? [{ id: "finance", label: "Οικονομικά", icon: "finance" }] : []),
+    ...(role !== "finance" ? [
+      { id: "daily", label: "Ημερήσιο", icon: "daily" },
+      { id: "weekly", label: "Εβδομαδ.", icon: "weekly" },
+      { id: "damages", label: "Βλάβες", icon: "damage" },
+      { id: "orders", label: "Παραγγ.", icon: "orders" },
+      { id: "history", label: "Ιστορικό", icon: "history" },
+    ] : []),
   ];
 
-  const titles = { dashboard: "Dashboard", daily: "Ημερήσιο Checklist", weekly: "Εβδομαδιαίο Checklist", damages: "Βλάβες & Φθορές", orders: "Παραγγελίες", history: "Ιστορικό" };
+  const titles = { dashboard: "Dashboard", finance: "Οικονομικά", daily: "Ημερήσιο Checklist", weekly: "Εβδομαδιαίο Checklist", damages: "Βλάβες & Φθορές", orders: "Παραγγελίες", history: "Ιστορικό" };
 
   return (
     <>
@@ -963,7 +1209,7 @@ export default function App() {
               <button className="logout-btn" style={{ marginTop: 4 }} onClick={handleLogout}>Έξοδος</button>
             </div>
           </div>
-          {tab !== "dashboard" && (
+          {tab !== "dashboard" && tab !== "finance" && (
             <div className="vessel-tabs">
               {VESSELS.map(v => (
                 <button key={v} className={`vessel-tab ${vessel === v ? "active" : ""}`} onClick={() => setVessel(v)}>{v}</button>
@@ -974,8 +1220,9 @@ export default function App() {
 
         <div className="content">
           <div className="section-title">{titles[tab]}</div>
-          <div className="section-sub">{tab === "dashboard" ? "Συνολικη Εικονα" : vessel}</div>
+          <div className="section-sub">{tab === "dashboard" ? "Συνολικη Εικονα" : tab === "finance" ? "Μόνο διαχειριστές" : vessel}</div>
           {tab === "dashboard" && <DashboardView />}
+          {tab === "finance" && <FinanceView />}
           {tab === "daily" && <ChecklistView vessel={vessel} type="daily" userName={userName} />}
           {tab === "weekly" && <ChecklistView vessel={vessel} type="weekly" userName={userName} />}
           {tab === "damages" && <DamagesView vessel={vessel} role={role} userName={userName} />}
