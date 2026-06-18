@@ -878,7 +878,7 @@ function DashboardView() {
 
 
 // ─── FINANCE VIEW ────────────────────────────────────────────────────────────
-const CLIENT_TYPES = ["Ιδιώτης", "Ταξιδιωτικό γραφείο", "Partner"];
+const CLIENT_TYPES = ["Ιδιώτης", "Ταξιδιωτικό γραφείο", "Partner", "Booking platform"];
 const PAYMENT_STATUSES = ["Εξοφλημένο", "Μερική προκαταβολή", "Ακάλυπτο"];
 const PAYMENT_METHODS = ["Μετρητά", "Κάρτα", "Μετρητά+Κάρτα", "Τραπεζική κατάθεση"];
 const PAYMENT_STATUS_COLORS = { "Εξοφλημένο": "#22c55e", "Μερική προκαταβολή": "#f59e0b", "Ακάλυπτο": "#ef4444" };
@@ -941,7 +941,8 @@ function FinanceView() {
   const martaCount = filtered.filter(c => c.vessel === "MARTA").length;
   const romviCount = filtered.filter(c => c.vessel === "ROMVI").length;
 
-  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const upcomingCharters = filtered.filter(c => c.date >= today());
+  const completedCharters = filtered.filter(c => c.date < today());
   const monthNames = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
 
   return (
@@ -1004,6 +1005,14 @@ function FinanceView() {
             <div className="stat-card">
               <div className="stat-num" style={{ color: pendingBalance > 0 ? "#ef4444" : "#22c55e", fontSize: "1.6rem" }}>€{pendingBalance.toFixed(0)}</div>
               <div className="stat-label">Οφειλές</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-num" style={{ color: "var(--ocean)" }}>{upcomingCharters.length}</div>
+              <div className="stat-label">Προσεχείς ναύλοι</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-num" style={{ color: "#22c55e" }}>{completedCharters.length}</div>
+              <div className="stat-label">Ολοκληρωμένοι</div>
             </div>
             <div className="stat-card">
               <div className="stat-num">{martaCount}</div>
