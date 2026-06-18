@@ -878,12 +878,12 @@ function DashboardView() {
 
 
 // ─── FINANCE VIEW ────────────────────────────────────────────────────────────
-const CLIENT_TYPES = ["Ιδιώτης", "Ταξιδιωτικό γραφείο", "Partner", "Booking platform"];
+const CLIENT_TYPES = ["Direct booking", "Ταξιδιωτικό γραφείο", "Partner", "Booking platform"];
 const PAYMENT_STATUSES = ["Εξοφλημένο", "Μερική προκαταβολή", "Ακάλυπτο"];
 const PAYMENT_METHODS = ["Μετρητά", "Κάρτα", "Μετρητά+Κάρτα", "Τραπεζική κατάθεση"];
 const PAYMENT_STATUS_COLORS = { "Εξοφλημένο": "#22c55e", "Μερική προκαταβολή": "#f59e0b", "Ακάλυπτο": "#ef4444" };
 
-const emptyForm = () => ({ vessel: "MARTA", date: today(), client_name: "", client_type: "Ιδιώτης", total: "", deposit: "", payment_status: "Ακάλυπτο", payment_method: "Μετρητά", notes: "" });
+const emptyForm = () => ({ vessel: "MARTA", date: today(), client_name: "", client_type: "Direct booking", total: "", deposit: "", payment_status: "Ακάλυπτο", payment_method: "Μετρητά", notes: "" });
 
 function FinanceView() {
   const [charters, setCharters] = useState([]);
