@@ -499,6 +499,13 @@ function DamagesView({ vessel, role, userName }) {
     fetchDamages();
   };
 
+  const deleteDamage = async (id, title) => {
+    if (window.confirm(`Διαγραφή βλάβης "${title}";`)) {
+      await sb("DELETE", "damages", null, `?id=eq.${id}`);
+      fetchDamages();
+    }
+  };
+
   const open = damages.filter(d => d.status !== "Κλειστό");
   const closed = damages.filter(d => d.status === "Κλειστό");
 
@@ -527,6 +534,7 @@ function DamagesView({ vessel, role, userName }) {
               {DAMAGE_STATUSES.filter(s => s !== d.status).map(s => (
                 <button key={s} className="btn btn-outline btn-sm" onClick={() => updateStatus(d.id, s)}>{s}</button>
               ))}
+              <button className="btn btn-sm" style={{ background: "#fff0f0", border: "1.5px solid #ef4444", color: "#ef4444" }} onClick={() => deleteDamage(d.id, d.title)}>Διαγραφή</button>
             </div>
           )}
         </div>
@@ -638,6 +646,13 @@ function OrdersView({ vessel, role, userName }) {
     }
   };
 
+  const deleteOrder = async (id, item) => {
+    if (window.confirm(`Διαγραφή παραγγελίας "${item}";`)) {
+      await sb("DELETE", "orders", null, `?id=eq.${id}`);
+      fetchOrders();
+    }
+  };
+
   const pending = orders.filter(o => o.status !== "Παραδόθηκε");
   const done = orders.filter(o => o.status === "Παραδόθηκε");
   const filteredCatalogue = Object.entries(SUPPLIES_CATALOGUE).map(([cat, items]) => ({
@@ -667,6 +682,7 @@ function OrdersView({ vessel, role, userName }) {
               {ORDER_STATUSES.filter(s => s !== o.status).map(s => (
                 <button key={s} className="btn btn-outline btn-sm" onClick={() => handleStatusClick(o, s)}>{s}</button>
               ))}
+              <button className="btn btn-sm" style={{ background: "#fff0f0", border: "1.5px solid #ef4444", color: "#ef4444" }} onClick={() => deleteOrder(o.id, o.item)}>Διαγραφή</button>
             </div>
           )}
         </div>
